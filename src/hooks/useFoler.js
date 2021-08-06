@@ -1,31 +1,39 @@
 import { useReducer, useEffect } from 'react';
-import { db } from '../firebase';
+import { db as database } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 
-const ROOT_FOLDER = {
-    name: 'Root',
-    id: null,
-    path: [],
+const ACTIONS = {
+    SELECT_FOLDER: 'select-folder',
+    UPDATE_FOLDER: 'update-folder',
+    SET_CHILD_FOLDERS: 'set-child-folders',
+    SET_CHILD_FILES: 'set-child-files',
 };
+
+export const ROOT_FOLDER = { name: 'Root', id: null, path: [] };
 
 function reducer(state, { type, payload }) {
     switch (type) {
-        case 'select-folder':
+        case ACTIONS.SELECT_FOLDER:
             return {
                 folderId: payload.folderId,
                 folder: payload.folder,
+                childFiles: [],
                 childFolders: [],
-                childFile: [],
             };
-        case 'update-folder':
+        case ACTIONS.UPDATE_FOLDER:
             return {
                 ...state,
                 folder: payload.folder,
             };
-        case 'set-child-folders':
+        case ACTIONS.SET_CHILD_FOLDERS:
             return {
                 ...state,
                 childFolders: payload.childFolders,
+            };
+        case ACTIONS.SET_CHILD_FILES:
+            return {
+                ...state,
+                childFiles: payload.childFiles,
             };
         default:
             return state;
@@ -33,60 +41,72 @@ function reducer(state, { type, payload }) {
 }
 
 export function useFolder(folderId = null, folder = null) {
-    const { currentUser } = useAuth();
     const [state, dispatch] = useReducer(reducer, {
         folderId,
         folder,
         childFolders: [],
-        childFile: [],
+        childFiles: [],
     });
+    const { currentUser } = useAuth();
+
     useEffect(() => {
-        dispatch({
-            type: 'select-folder',
-            payload: { folderId, folder },
-        });
+        dispatch({ type: ACTIONS.SELECT_FOLDER, payload: { folderId, folder } });
     }, [folderId, folder]);
 
     useEffect(() => {
         if (folderId == null) {
             return dispatch({
-                type: 'update-folder',
-                payload: {
-                    folder: ROOT_FOLDER,
-                },
+                type: ACTIONS.UPDATE_FOLDER,
+                payload: { folder: ROOT_FOLDER },
             });
         }
-        db.folders
+
+        database.folders
             .doc(folderId)
             .get()
             .then((doc) => {
-                console.log(db.formattedDoc(doc));
-            })
-            .catch((e) =>
                 dispatch({
-                    type: 'update-folder',
-                    payload: {
-                        folder: ROOT_FOLDER,
-                    },
-                })
-            );
+                    type: ACTIONS.UPDATE_FOLDER,
+                    payload: { folder: database.formattedDoc(doc) },
+                });
+            })
+            .catch(() => {
+                dispatch({
+                    type: ACTIONS.UPDATE_FOLDER,
+                    payload: { folder: ROOT_FOLDER },
+                });
+            });
     }, [folderId]);
 
     useEffect(() => {
         return (
-            db.folders
+            database.folders
                 .where('parentId', '==', folderId)
                 .where('userId', '==', currentUser.uid)
-                //.orderBy('createAt')
-                .onSnapshot((snap) => {
+                // .orderBy('createdAt')
+                .onSnapshot((snapshot) => {
                     dispatch({
-                        type: 'set-child-folders',
-                        payload: {
-                            childFolders: snap.docs.map(db.formattedDoc),
-                        },
+                        type: ACTIONS.SET_CHILD_FOLDERS,
+                        payload: { childFolders: snapshot.docs.map(database.formattedDoc) },
                     });
                 })
         );
-    }, [folderId]);
+    }, [folderId, currentUser]);
+
+    // useEffect(() => {
+    //     return (
+    //         database.files
+    //             .where('folderId', '==', folderId)
+    //             .where('userId', '==', currentUser.uid)
+    //             // .orderBy("createdAt")
+    //             .onSnapshot((snapshot) => {
+    //                 dispatch({
+    //                     type: ACTIONS.SET_CHILD_FILES,
+    //                     payload: { childFiles: snapshot.docs.map(database.formattedDoc) },
+    //                 });
+    //             })
+    //     );
+    // }, [folderId, currentUser]);
+
     return state;
 }

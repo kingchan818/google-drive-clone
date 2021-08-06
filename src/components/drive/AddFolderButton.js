@@ -26,6 +26,7 @@ export default function AddFolderButton({ currentFolder }) {
             createAt: db.getCurrentTimeStamp(),
             // path:
         });
+        console.log('file created');
         setName('');
         closeModal();
     };
@@ -35,7 +36,7 @@ export default function AddFolderButton({ currentFolder }) {
                 <FontAwesomeIcon icon={faFolderPlus} />
             </Button>
             <Modal show={open} onHide={closeModal}>
-                <Form onSubmit={handelSubmit}>
+                <Form onSubmit={(e) => handelSubmit(e)}>
                     <Modal.Body>
                         <Form.Group>
                             <Form.Label>Folder Name</Form.Label>
